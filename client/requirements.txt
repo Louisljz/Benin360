@@ -1,0 +1,8 @@
+streamlit
+wikipedia
+audio-recorder-streamlit
+langchain
+langchain-openai
+langchain-pinecone
+langchain-community
+langchainhub
