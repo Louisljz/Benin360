@@ -19,6 +19,7 @@ with st.container():
     if uploaded_file is not None:
         st.video(uploaded_file)
     
+    source_language = st.selectbox("🌐 What's the video's language?", ("French", "Yoruba"))
     target_language = st.selectbox("🚩 What's your language?", ("English", "Spanish", "Italian", "German"))
 
     dub = st.checkbox('🗣️ Dub video?', value=False)
@@ -28,7 +29,7 @@ if st.button('Process Video') and uploaded_file is not None:
     with open("upload.mp4", "wb") as out_file:
         out_file.write(uploaded_file.getvalue())
     with open("upload.mp4", "rb") as in_file:
-        data = {'target_language': language_codes[target_language], 'dub': dub}
+        data = {'target_language': language_codes[target_language], 'dub': dub, 'source_language': source_language}
         response = requests.post(st.secrets['API_URL'], files={'file': in_file}, data=data)
 
     if response.status_code == 200:

@@ -2,6 +2,8 @@ from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.responses import FileResponse
 import os
 import shutil
+import torch
+from transformers import pipeline
 from pydub import AudioSegment
 from moviepy.editor import VideoFileClip, CompositeVideoClip, TextClip, AudioFileClip, CompositeAudioClip
 
@@ -21,6 +23,32 @@ def clean_temp_folder():
     if os.path.exists('temp'):
         shutil.rmtree('temp')
     os.makedirs('temp')
+    
+def format_timestamp(seconds: float, always_include_hours: bool = False, decimal_marker: str = ","):
+    if seconds is not None:
+        milliseconds = round(seconds * 1000.0)
+
+        hours = milliseconds // 3_600_000
+        milliseconds -= hours * 3_600_000
+
+        minutes = milliseconds // 60_000
+        milliseconds -= minutes * 60_000
+
+        seconds = milliseconds // 1_000
+        milliseconds -= seconds * 1_000
+
+        hours_marker = f"{hours:02d}:" if always_include_hours or hours > 0 else ""
+        return f"{hours_marker}{minutes:02d}:{seconds:02d}{decimal_marker}{milliseconds:03d}"
+    else:
+        return seconds
+
+def create_srt(subtitles):
+    srt_content = ""
+    for i, (start, end, text) in enumerate(subtitles):
+        start_time = format_timestamp(start, always_include_hours=True)
+        end_time = format_timestamp(end, always_include_hours=True)
+        srt_content += f"{i+1}\n{start_time} --> {end_time}\n{text}\n\n"
+    return srt_content
 
 def text_to_speech(text, output_filename):
     response = client.audio.speech.create(model="tts-1", voice="shimmer", input=text)
@@ -32,7 +60,29 @@ def decode_audio(inFile, outFile):
         outFile += ".mp3"
     AudioSegment.from_file(inFile).set_channels(1).export(outFile, format="mp3")
 
-def transcribe(file_path: str):
+def transcribe_yoruba(file_path: str):
+    # Initialize the model and arguments
+    MODEL_NAME = "neoform-ai/whisper-medium-yoruba"
+    device = 0 if torch.cuda.is_available() else "cpu"
+    pipe = pipeline(
+        task="automatic-speech-recognition",
+        model=MODEL_NAME,
+        chunk_length_s=30,
+        device=device,
+    )
+    outputs = pipe(file_path, batch_size=8, generate_kwargs={"task": 'transcribe'}, return_timestamps=True)
+    subtitles = []
+    srt_content = ""
+    timestamps = outputs["chunks"]
+    subtitles = [
+        (chunk['timestamp'][0], chunk['timestamp'][1], chunk['text'])
+        for chunk in timestamps
+    ]
+    srt_content = create_srt(subtitles)
+    with open("temp/transcript.srt", "w", encoding="utf-8") as file:
+        file.write(srt_content)
+
+def transcribe(file_path: str, language='french'):
     with open(file_path, "rb") as audio_file:
         transcription = client.audio.transcriptions.create(
             model="whisper-1", 
@@ -41,6 +91,7 @@ def transcribe(file_path: str):
         )
     with open("temp/transcript.srt", "w") as transcript_file:
         transcript_file.write(transcription)
+        
 
 def caption(video_file):
     subs = pysrt.open('temp/translated_output.srt', encoding='utf-8')
@@ -90,13 +141,16 @@ def add_tts_to_video(video_path, srt_path):
     final_video = video.set_audio(final_audio)
     final_video.write_videofile("temp/video_with_tts.mp4", codec='libx264', audio_codec='aac')
 
-def cap(video_file, target_language, dubbing):
+def cap(video_file, target_language, dubbing, source_language):
     # Step 1: Decode audio from video
     audio_file_path = "temp/audio.mp3"
     decode_audio(video_file, audio_file_path)
     
     # Step 2: Transcribe audio to SRT
-    transcribe(audio_file_path)
+    if source_language != 'Yoruba':
+        transcribe(audio_file_path)
+    else:
+        transcribe_yoruba(audio_file_path)
     
     # Step 3: Translate the SRT
     translate_srt("temp/transcript.srt", "temp/translated_output.srt", target_language=target_language)
@@ -112,7 +166,7 @@ def cap(video_file, target_language, dubbing):
 
 
 @app.post("/process_video")
-def process_video(file: UploadFile = File(...), target_language: str = Form(...), dub: bool = Form(...)):
+def process_video(file: UploadFile = File(...), target_language: str = Form(...), dub: bool = Form(...), source_language: str = Form(...)):
     clean_temp_folder()
 
     contents = file.file.read()
@@ -120,6 +174,6 @@ def process_video(file: UploadFile = File(...), target_language: str = Form(...)
     with open(file_path, 'wb') as f:
         f.write(contents)
 
-    cap(file_path, target_language, dub)
+    cap(file_path, target_language, dub, source_language)
 
     return FileResponse("temp/download.mp4", media_type='video/mp4', filename="download.mp4")
