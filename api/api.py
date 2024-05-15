@@ -4,7 +4,6 @@ import os
 import shutil
 from pydub import AudioSegment
 from moviepy.editor import VideoFileClip, CompositeVideoClip, TextClip, AudioFileClip, CompositeAudioClip
-from moviepy.config import change_settings
 
 import pysrt
 import textwrap
@@ -13,7 +12,6 @@ from openai import OpenAI
 from dotenv import load_dotenv
 
 
-change_settings({"IMAGEMAGICK_BINARY": r"C:\\Program Files\\ImageMagick-7.1.1-Q16\\magick.exe"})
 load_dotenv()
 app = FastAPI()
 client = OpenAI()
@@ -51,7 +49,7 @@ def caption(video_file):
 
     def generator(txt, start, end):
         wrapped_txt = textwrap.fill(txt, width=30)  # Wrap the text if it's too long
-        return (TextClip(wrapped_txt, font='Arial-Bold', fontsize=80, color='white', stroke_color='black', stroke_width=1.5)
+        return (TextClip(wrapped_txt, font='DejaVu-Sans', fontsize=80, color='white', stroke_color='black', stroke_width=1.5)
                 .set_start(start)
                 .set_duration(end - start)
                 .set_position(('center', 'bottom')))
@@ -114,13 +112,14 @@ def cap(video_file, target_language, dubbing):
 
 
 @app.post("/process_video")
-async def process_video(file: UploadFile = File(...), target_language: str = Form(...), dub: bool = Form(...)):
+def process_video(file: UploadFile = File(...), target_language: str = Form(...), dub: bool = Form(...)):
     clean_temp_folder()
 
-    upload_path = "temp/upload.mp4"
-    with open(upload_path, "wb") as buffer:
-        buffer.write(await file.read())
+    contents = file.file.read()
+    file_path = os.path.join("temp", file.filename)
+    with open(file_path, 'wb') as f:
+        f.write(contents)
 
-    cap(upload_path, target_language, dub)
+    cap(file_path, target_language, dub)
 
     return FileResponse("temp/download.mp4", media_type='video/mp4', filename="download.mp4")
