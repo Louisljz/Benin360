@@ -57,6 +57,12 @@ def setup_retriever(rag_retriever):
         f"search for information about {site}.",
     )
 
+    rag_tool = create_retriever_tool(
+        rag_retriever,
+        f"explore_{site}",
+        f"search for information about {site}.",
+    )
+
     tools = [wiki_tool, rag_tool]
 
     llm = ChatOpenAI(model='gpt-4-turbo')

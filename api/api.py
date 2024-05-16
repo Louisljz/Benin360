@@ -1,6 +1,7 @@
 import os
 import shutil
 import textwrap
+import zipfile
 import requests
 from dotenv import load_dotenv
 
@@ -94,7 +95,10 @@ def transcribe(file_path, source_language):
         transcript_file.write(transcription)
 
 def translate_srt(input_srt, output_srt, source_language, target_language):
-    subs = pysrt.open(input_srt, encoding='utf-8')
+    if source_language == 'fr':
+        subs = pysrt.open(input_srt, encoding='latin1')
+    else:
+        subs = pysrt.open(input_srt, encoding='utf-8')
 
     url = 'https://translation.googleapis.com/language/translate/v2'
 
@@ -126,7 +130,10 @@ def caption(video_file):
 
     subtitles = [generator(txt, start, end) for ((start, end), txt) in subtitles_list]
     video = CompositeVideoClip([video] + subtitles)
-    video.write_videofile("download.mp4", codec='libx264', audio_codec='aac')
+    video.write_videofile("temp/download.mp4", codec='libx264', audio_codec='aac')
+    transcript = ' '.join([s.text for s in subs])
+    with open('temp/transcript.txt', 'w') as f:
+        f.write(transcript)
 
 def add_tts_to_video(video_path, srt_path):
     def text_to_speech(text, output_filename):
@@ -186,6 +193,12 @@ def process_video(file: UploadFile = File(...), source_language: str = Form(...)
         f.write(contents)
 
     cap(file_path, source_language, target_language, dub)
-    # shutil.rmtree('temp')
 
-    return FileResponse("download.mp4", media_type='video/mp4')
+    zip_path = 'output.zip'
+    with zipfile.ZipFile(zip_path, 'w') as zipf:
+        zipf.write("temp/download.mp4", arcname='download.mp4')
+        zipf.write('temp/transcript.txt', arcname='transcript.txt')
+
+    shutil.rmtree('temp', ignore_errors=True)
+
+    return FileResponse(zip_path, media_type='application/zip')
