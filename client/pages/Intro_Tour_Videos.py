@@ -51,7 +51,7 @@ if st.button('Process Video') and uploaded_file is not None:
                 'target_language': language_codes[target_language], 
                 'dub': dub}
         with st.spinner('Processing video...'):
-            response = requests.post('http://127.0.0.1:8000/process_video', files={'file': in_file}, data=data)
+            response = requests.post(st.secrets['API_URL'], files={'file': in_file}, data=data)
 
     if response.status_code == 200:
         # Save the received ZIP file
