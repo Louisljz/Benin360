@@ -6,3 +6,5 @@ pydub
 moviepy
 pysrt
 openai
+torch
+transformers

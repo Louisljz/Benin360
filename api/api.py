@@ -1,29 +1,36 @@
-from fastapi import FastAPI, File, UploadFile, Form
-from fastapi.responses import FileResponse
 import os
 import shutil
-import torch
-from transformers import pipeline
-from pydub import AudioSegment
+import textwrap
+import requests
+from dotenv import load_dotenv
+
+from fastapi import FastAPI, File, UploadFile, Form
+from fastapi.responses import FileResponse
+
+from moviepy.config import change_settings
 from moviepy.editor import VideoFileClip, CompositeVideoClip, TextClip, AudioFileClip, CompositeAudioClip
 
 import pysrt
-import textwrap
-import requests
+from pydub import AudioSegment
+
+import torch
+from transformers import pipeline
+
 from openai import OpenAI
-from dotenv import load_dotenv
 
 
+change_settings({"IMAGEMAGICK_BINARY": r"C:\\Program Files\\ImageMagick-7.1.1-Q16\\magick.exe"})
 load_dotenv()
 app = FastAPI()
 client = OpenAI()
+DEVICE = 0 if torch.cuda.is_available() else "cpu"
 
 
 def clean_temp_folder():
     if os.path.exists('temp'):
         shutil.rmtree('temp')
     os.makedirs('temp')
-    
+
 def format_timestamp(seconds: float, always_include_hours: bool = False, decimal_marker: str = ","):
     if seconds is not None:
         milliseconds = round(seconds * 1000.0)
@@ -50,25 +57,18 @@ def create_srt(subtitles):
         srt_content += f"{i+1}\n{start_time} --> {end_time}\n{text}\n\n"
     return srt_content
 
-def text_to_speech(text, output_filename):
-    response = client.audio.speech.create(model="tts-1", voice="shimmer", input=text)
-    with open(output_filename, "wb") as out:
-        out.write(response.content)
-
 def decode_audio(inFile, outFile):
     if not outFile.endswith(".mp3"):
         outFile += ".mp3"
     AudioSegment.from_file(inFile).set_channels(1).export(outFile, format="mp3")
 
 def transcribe_yoruba(file_path: str):
-    # Initialize the model and arguments
-    MODEL_NAME = "neoform-ai/whisper-medium-yoruba"
-    device = 0 if torch.cuda.is_available() else "cpu"
+    model_name = "neoform-ai/whisper-medium-yoruba"
     pipe = pipeline(
         task="automatic-speech-recognition",
-        model=MODEL_NAME,
+        model=model_name,
         chunk_length_s=30,
-        device=device,
+        device=DEVICE,
     )
     outputs = pipe(file_path, batch_size=8, generate_kwargs={"task": 'transcribe'}, return_timestamps=True)
     subtitles = []
@@ -82,16 +82,33 @@ def transcribe_yoruba(file_path: str):
     with open("temp/transcript.srt", "w", encoding="utf-8") as file:
         file.write(srt_content)
 
-def transcribe(file_path: str, language='french'):
+def transcribe(file_path, source_language):
     with open(file_path, "rb") as audio_file:
         transcription = client.audio.transcriptions.create(
             model="whisper-1", 
             file=audio_file, 
-            response_format="srt"
+            response_format="srt",
+            language=source_language
         )
     with open("temp/transcript.srt", "w") as transcript_file:
         transcript_file.write(transcription)
-        
+
+def translate_srt(input_srt, output_srt, source_language, target_language):
+    subs = pysrt.open(input_srt, encoding='utf-8')
+
+    url = 'https://translation.googleapis.com/language/translate/v2'
+
+    for sub in subs:
+        params = {
+            'q': sub.text,
+            'source': source_language,
+            'target': target_language,
+            'key': os.getenv('GCLOUD_API_KEY')
+        }
+        response = requests.get(url, params=params)
+        sub.text = response.json()['data']['translations'][0]['translatedText']
+
+    subs.save(output_srt, encoding='utf-8')
 
 def caption(video_file):
     subs = pysrt.open('temp/translated_output.srt', encoding='utf-8')
@@ -107,25 +124,14 @@ def caption(video_file):
 
     subtitles = [generator(txt, start, end) for ((start, end), txt) in subtitles_list]
     video = CompositeVideoClip([video] + subtitles)
-    video.write_videofile("temp/download.mp4", codec='libx264', audio_codec='aac')
-
-def translate_srt(input_srt, output_srt, target_language='en'):
-    subs = pysrt.open(input_srt, encoding='latin-1')
-
-    url = 'https://translation.googleapis.com/language/translate/v2'
-
-    for sub in subs:
-        params = {
-            'q': sub.text,
-            'target': target_language,
-            'key': os.getenv('GCLOUD_API_KEY')
-        }
-        response = requests.get(url, params=params)
-        sub.text = response.json()['data']['translations'][0]['translatedText']
-
-    subs.save(output_srt, encoding='utf-8')
+    video.write_videofile("download.mp4", codec='libx264', audio_codec='aac')
 
 def add_tts_to_video(video_path, srt_path):
+    def text_to_speech(text, output_filename):
+        response = client.audio.speech.create(model="tts-1", voice="shimmer", input=text)
+        with open(output_filename, "wb") as out:
+            out.write(response.content)
+    
     subs = pysrt.open(srt_path, encoding='utf-8')
     tts_audios = []
     for i, sub in enumerate(subs):
@@ -141,19 +147,22 @@ def add_tts_to_video(video_path, srt_path):
     final_video = video.set_audio(final_audio)
     final_video.write_videofile("temp/video_with_tts.mp4", codec='libx264', audio_codec='aac')
 
-def cap(video_file, target_language, dubbing, source_language):
+def cap(video_file, source_language, target_language, dubbing):
     # Step 1: Decode audio from video
     audio_file_path = "temp/audio.mp3"
     decode_audio(video_file, audio_file_path)
     
     # Step 2: Transcribe audio to SRT
-    if source_language != 'Yoruba':
-        transcribe(audio_file_path)
-    else:
+    if source_language == 'yo':
         transcribe_yoruba(audio_file_path)
+    elif source_language == 'fon':
+        pass
+        # transcribe fon
+    else:
+        transcribe(audio_file_path, source_language)
     
     # Step 3: Translate the SRT
-    translate_srt("temp/transcript.srt", "temp/translated_output.srt", target_language=target_language)
+    translate_srt("temp/transcript.srt", "temp/translated_output.srt", source_language, target_language)
     
     if dubbing:
         # Step 4: Add TTS to video
@@ -166,14 +175,13 @@ def cap(video_file, target_language, dubbing, source_language):
 
 
 @app.post("/process_video")
-def process_video(file: UploadFile = File(...), target_language: str = Form(...), dub: bool = Form(...), source_language: str = Form(...)):
-    clean_temp_folder()
-
+def process_video(file: UploadFile = File(...), source_language: str = Form(...), target_language: str = Form(...), dub: bool = Form(...)):
     contents = file.file.read()
     file_path = os.path.join("temp", file.filename)
     with open(file_path, 'wb') as f:
         f.write(contents)
 
-    cap(file_path, target_language, dub, source_language)
+    cap(file_path, source_language, target_language, dub)
+    clean_temp_folder()
 
-    return FileResponse("temp/download.mp4", media_type='video/mp4', filename="download.mp4")
+    return FileResponse("download.mp4", media_type='video/mp4')

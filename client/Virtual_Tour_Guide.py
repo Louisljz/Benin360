@@ -1,9 +1,11 @@
 import streamlit as st
 from audio_recorder_streamlit import audio_recorder
+
 import os
 import requests
-import langchain
 from openai import OpenAI
+
+import langchain
 from langchain import hub
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
@@ -19,10 +21,11 @@ client = OpenAI()
 def download_prompt():
     return hub.pull("hwchase17/openai-tools-agent")
 
-def translate_text(text):
+def translate_text(text, source_lang):
     url = 'https://translation.googleapis.com/language/translate/v2'
     params = {
         'q': text,
+        'source': source_lang,
         'target': 'en',
         'key': st.secrets['GCLOUD_API_KEY']
     }
@@ -59,7 +62,7 @@ def setup_retriever(rag_retriever):
     prompt = download_prompt()
     system_messages = '''
     You are a tour guide assistant, designed to provide tourists with info about Benin and its popular tourist sites.
-    Please respond concisely, and write in 2 sentences maximum. answer in the same language as the question.
+    Please respond concisely, and write in 2 sentences maximum. answer in the same language as the user question.
     If the information retrieved is misleading, you may use your own knowledge to answer, or say "I don't know".
     '''
     prompt.messages[0].prompt.template = system_messages
@@ -70,16 +73,11 @@ def setup_retriever(rag_retriever):
 
 
 tourist_sites_benin = [
-    "Royal Palaces of Abomey",
     "Pendjari National Park",
-    "Ouidah Museum of History",
-    "Temple of Pythons",
     "Porto-Novo Museum",
     "Lake Nokoue",
-    "Ganvie",
     "Fidjrosse Beach",
     "The Cathedral of Notre Dame de Misericorde",
-    "Dantokpa Market"
 ]
 
 
@@ -158,9 +156,10 @@ else:
                     st.audio(audio)
 
     with tabs[1]:
+        lang = st.selectbox('Select the language of the information you want to add.', ['English', 'French', 'Yoruba', 'Fon'])
         content = st.text_area('Add more information about the tourist site to help other visitors.', height=200)
         if st.button('Submit'):
-            content = translate_text(content)
+            content = translate_text(content, lang)
             st.session_state.vector_store.add_texts([content], namespace=st.session_state.tourist_site)
             with st.expander('Translation'):
                 st.write(content)

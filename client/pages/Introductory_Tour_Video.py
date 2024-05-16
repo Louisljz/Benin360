@@ -3,6 +3,9 @@ import streamlit as st
 
 # Define language codes
 language_codes = {
+    'French': 'fr',
+    'Yoruba': 'yo',
+    'Fon': 'fon',
     'English': 'en',
     'Spanish': 'es',
     'Italian': 'it',
@@ -19,8 +22,11 @@ with st.container():
     if uploaded_file is not None:
         st.video(uploaded_file)
     
-    source_language = st.selectbox("🌐 What's the video's language?", ("French", "Yoruba"))
-    target_language = st.selectbox("🚩 What's your language?", ("English", "Spanish", "Italian", "German"))
+    source_language = st.selectbox("🌐 What's the video's language?", ("French", "Yoruba", "Fon"))
+    lang_options = ["English", "Spanish", "Italian", "German", "French"]
+    if source_language == "French":
+        lang_options.remove("French")
+    target_language = st.selectbox("🚩 What's your language?", lang_options)
 
     dub = st.checkbox('🗣️ Dub video?', value=False)
 
@@ -29,8 +35,11 @@ if st.button('Process Video') and uploaded_file is not None:
     with open("upload.mp4", "wb") as out_file:
         out_file.write(uploaded_file.getvalue())
     with open("upload.mp4", "rb") as in_file:
-        data = {'target_language': language_codes[target_language], 'dub': dub, 'source_language': source_language}
-        response = requests.post(st.secrets['API_URL'], files={'file': in_file}, data=data)
+        data = {'source_language': language_codes[source_language], 
+                'target_language': language_codes[target_language], 
+                'dub': dub}
+        with st.spinner('Processing video...'):
+            response = requests.post('http://127.0.0.1:8000/process_video', files={'file': in_file}, data=data)
 
     if response.status_code == 200:
         st.success('Video has been processed successfully!')
