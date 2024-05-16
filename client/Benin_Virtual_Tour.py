@@ -22,11 +22,10 @@ st.set_page_config(page_title="Benin Tourism", page_icon="🌍", layout="wide")
 def download_prompt():
     return hub.pull("hwchase17/openai-tools-agent")
 
-def translate_text(text, source_lang):
+def translate_text(text):
     url = 'https://translation.googleapis.com/language/translate/v2'
     params = {
         'q': text,
-        'source': source_lang,
         'target': 'en',
         'key': st.secrets['GCLOUD_API_KEY']
     }
@@ -163,10 +162,9 @@ else:
                     st.audio(audio)
 
     with tabs[1]:
-        lang = st.selectbox('Select the language of the information you want to add.', ['English', 'French', 'Yoruba', 'Fon'])
         content = st.text_area('Add more information about the tourist site to help other visitors.', height=200)
         if st.button('Submit'):
-            content = translate_text(content, lang)
+            content = translate_text(content)
             st.session_state.vector_store.add_texts([content], namespace=st.session_state.tourist_site)
             with st.expander('Translation'):
                 st.write(content)

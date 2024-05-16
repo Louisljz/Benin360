@@ -164,9 +164,6 @@ def cap(video_file, source_language, target_language, dubbing):
     # Step 2: Transcribe audio to SRT
     if source_language == 'yo':
         transcribe_yoruba(audio_file_path)
-    elif source_language == 'fon':
-        pass
-        # transcribe fon
     else:
         transcribe(audio_file_path, source_language)
     

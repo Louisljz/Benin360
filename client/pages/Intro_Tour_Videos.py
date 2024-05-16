@@ -17,7 +17,6 @@ def read_transcript(file_path):
 language_codes = {
     'French': 'fr',
     'Yoruba': 'yo',
-    'Fon': 'fon',
     'English': 'en',
     'Spanish': 'es',
     'Italian': 'it',
@@ -35,7 +34,7 @@ with st.container():
     if uploaded_file is not None:
         st.video(uploaded_file)
     
-    source_language = st.selectbox("🌐 What's the video's language?", ("French", "Yoruba", "Fon"))
+    source_language = st.selectbox("🌐 What's the video's language?", ("French", "Yoruba"))
     lang_options = ["English", "Spanish", "Italian", "German", "French"]
     if source_language == "French":
         lang_options.remove("French")
