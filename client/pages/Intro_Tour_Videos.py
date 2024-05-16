@@ -27,6 +27,7 @@ language_codes = {
 st.set_page_config(page_title="Introductory Tour Videos", page_icon="📼", layout="wide")
 st.subheader('Introductory Tour Video 📸')
 st.write('Makes video content more accessible to tourists in multiple languages.')
+st.warning('Please note that the API is not yet hosted, so the captioning feature will not work. We will try, as quick as possible, to get it hosted. Please come back another time! 😁')
 
 with st.container():
     uploaded_file = st.file_uploader("📂 Choose a video file", type=['mp4', 'mov', 'avi'])
