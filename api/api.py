@@ -106,7 +106,9 @@ def translate_srt(input_srt, output_srt, source_language, target_language):
             'key': os.getenv('GCLOUD_API_KEY')
         }
         response = requests.get(url, params=params)
-        sub.text = response.json()['data']['translations'][0]['translatedText']
+        content = response.json()['data']['translations'][0]['translatedText']
+
+        sub.text = content.replace('&#39;', "'")
 
     subs.save(output_srt, encoding='utf-8')
 
@@ -176,12 +178,14 @@ def cap(video_file, source_language, target_language, dubbing):
 
 @app.post("/process_video")
 def process_video(file: UploadFile = File(...), source_language: str = Form(...), target_language: str = Form(...), dub: bool = Form(...)):
+    if not os.path.exists('temp'):
+        os.makedirs('temp')
     contents = file.file.read()
     file_path = os.path.join("temp", file.filename)
     with open(file_path, 'wb') as f:
         f.write(contents)
 
     cap(file_path, source_language, target_language, dub)
-    clean_temp_folder()
+    # shutil.rmtree('temp')
 
     return FileResponse("download.mp4", media_type='video/mp4')

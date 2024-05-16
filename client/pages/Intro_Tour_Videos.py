@@ -13,6 +13,7 @@ language_codes = {
 }
 
 # Streamlit interface
+st.set_page_config(page_title="Introductory Tour Videos", page_icon="📼", layout="wide")
 st.subheader('Introductory Tour Video 📸')
 st.write('Makes video content more accessible to tourists in multiple languages.')
 

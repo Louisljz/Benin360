@@ -16,6 +16,7 @@ from langchain.agents import AgentExecutor, create_openai_tools_agent
 
 langchain.debug = True
 client = OpenAI()
+st.set_page_config(page_title="Benin Tourism", page_icon="🌍", layout="wide")
 
 @st.cache_data
 def download_prompt():
