@@ -1,6 +1,8 @@
 # Benin 360
 Explore Benin tourist sites with a multilingual virtual tour guide, and introductory tour videos, adapted to your foreign language.
 
+**NOTE: WE ONLY EDIT FILE SIZE LIMIT, BECAUSE SERVER IS USING TOO MUCH CREDITS**
+
 ## FrontEnd
 Provider: Streamlit
 
